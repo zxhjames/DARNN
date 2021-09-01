@@ -1,7 +1,7 @@
 '''
 Author: your name
 Date: 2021-09-01 10:08:37
-LastEditTime: 2021-09-01 10:22:34
+LastEditTime: 2021-09-01 13:24:53
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/train.py
@@ -12,44 +12,24 @@ FilePath: /PyCode/project_demo/研二/code/train.py
 import typing
 from typing import Tuple
 import json
-import os
-import torch
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch import optim
 import joblib
-# from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
 import utils
 from imodules import Encoder, Decoder
-from custom_types import DaRnnNet, TrainData, TrainConfig
+from lstm import Lstm
+from custom_types import *
 from utils import numpy_to_tvar
 from constants import device
 
 logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
 
-
-'''
-数据预处理
-'''
-
-
-def preprocess_data(dat, col_names) -> Tuple[TrainData, StandardScaler]:
-    # 标准化
-    scale = StandardScaler().fit(dat)
-    proc_dat = scale.transform(dat)
-    # 生成同等列长的mask数组
-    mask = np.ones(proc_dat.shape[1], dtype=bool)
-    dat_cols = list(dat.columns)
-    for col_name in col_names:
-        mask[dat_cols.index(col_name)] = False
-    feats = proc_dat[:, mask]
-    targs = proc_dat[:, ~mask]
-    return TrainData(feats, targs), scale
 
 
 def rnn(train_data: TrainData, n_targs: int, hidden_size=64,
@@ -66,37 +46,21 @@ def rnn(train_data: TrainData, n_targs: int, hidden_size=64,
         "hidden_size" : hidden_size,
         "T" : T
     }
+    rnn  = Lstm(**rnn_args).to(device)
+    with open( ('data/lstm.json'),"w") as fi:
+        json.dump(rnn_args,fi,indent=4)
 
+    rnn_optimizer = optim.Adam(
+        params=[p for p in rnn.parameters() if p.requires_grad],
+        lr=learning_rate
+    )
 
-    my_lstm = {
-        ""
-    }
-
-
-    # enc_kwargs = {
-    #     "input_size": train_data.feats.shape[1], "hidden_size": encoder_hidden_size, "T": T}
-    # encoder = Encoder(**enc_kwargs).to(device)
-
-    # # 将encoder层，decoder层配置写 入配置文件
-    # with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
-    #     json.dump(enc_kwargs, fi, indent=4)
-
-    # dec_kwargs = {"encoder_hidden_size": encoder_hidden_size,
-    #               "decoder_hidden_size": decoder_hidden_size, "T": T, "out_feats": n_targs}
-    # decoder = Decoder(**dec_kwargs).to(device)
-    # with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
-    #     json.dump(dec_kwargs, fi, indent=4)
-
-    # encoder_optimizer = optim.Adam(
-    #     params=[p for p in encoder.parameters() if p.requires_grad],
-    #     lr=learning_rate)
-    # decoder_optimizer = optim.Adam(
-    #     params=[p for p in decoder.parameters() if p.requires_grad],
-    #     lr=learning_rate)
-    # da_rnn_net = DaRnnNet(
-    #     encoder, decoder, encoder_optimizer, decoder_optimizer)
-
-    return train_cfg, da_rnn_net
+    print(rnn_optimizer)
+    
+    rnn_net = RnnNet(
+        rnn,rnn_optimizer
+    )
+    return train_cfg, rnn_net
 
 
     
@@ -149,8 +113,8 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
     iter_losses = np.zeros(n_epochs * iter_per_epoch)
     # 存储每轮epoch的损失值
     epoch_losses = np.zeros(n_epochs)
-    print('iter_loss:', iter_losses)
-    print('epoch_loss: ', epoch_losses)
+    # print('iter_loss:', iter_losses)
+    # print('epoch_loss: ', epoch_losses)
     logger.info(
         f"Iterations per epoch: {t_cfg.train_size * 1. / t_cfg.batch_size:3.3f} ~ {iter_per_epoch:d}.")
 
@@ -170,10 +134,15 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
 
             feats, y_history, y_target = prep_train_data(
                 batch_idx, t_cfg, train_data)
+
+            logger.info("数据准备成功")
+            print('数据准备成功!')
             # 计算loss值
 
             loss = train_iteration(net, t_cfg.loss_func,
                                    feats, y_history, y_target)
+
+                                   
             iter_losses[e_i * iter_per_epoch + t_i // t_cfg.batch_size] = loss
             # if (j / t_cfg.batch_size) % 50 == 0:
             #    self.logger.info("Epoch %d, Batch %d: loss = %3.3f.", i, j / t_cfg.batch_size, loss)
@@ -256,6 +225,10 @@ def train_iteration(t_net: DaRnnNet, loss_func: typing.Callable, X, y_history, y
     return loss.item()
 
 
+
+'''
+预测代码
+'''
 def predict(t_net: DaRnnNet, t_dat: TrainData, train_size: int, batch_size: int, T: int, on_train=False):
     out_size = t_dat.targs.shape[1]
     if on_train:
@@ -285,3 +258,5 @@ def predict(t_net: DaRnnNet, t_dat: TrainData, train_size: int, batch_size: int,
             input_encoded, y_history).cpu().data.numpy()
 
     return y_pred
+
+

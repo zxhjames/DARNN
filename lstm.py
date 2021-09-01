@@ -1,8 +1,8 @@
 '''
 Author: your name
 Date: 2021-08-31 10:06:33
-LastEditTime: 2021-09-01 10:27:10
-LastEditors: your name
+LastEditTime: 2021-09-01 13:30:46
+LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/lstm.py
 '''
@@ -18,10 +18,10 @@ class Lstm(nn.Module):
         # lstm的输入 #batch,seq_len, input_size
         self.hidden_size = hidden_size # 隐藏层个数
         self.input_size = input_size # 输入大小
-        self.num_layers = num_layers # 层数
-        self.output_size = output_size
-        self.dropout = dropout
-        self.batch_first = batch_first
+        self.num_layers = 1 # 层数
+        self.output_size = 1
+        self.dropout = 0
+        self.batch_first = False
         self.rnn = nn.LSTM(input_size=self.input_size, hidden_size=self.hidden_size, num_layers=self.num_layers, batch_first=self.batch_first, dropout=self.dropout )
         self.linear = nn.Linear(self.hidden_size, self.output_size)
 
@@ -31,3 +31,6 @@ class Lstm(nn.Module):
         # out = self.linear(hidden.reshape(a * b, c))
         out = self.linear(hidden)
         return out
+
+
+    
