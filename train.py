@@ -1,14 +1,24 @@
+'''
+Author: your name
+Date: 2021-09-01 10:08:37
+LastEditTime: 2021-09-01 10:22:34
+LastEditors: Please set LastEditors
+Description: In User Settings Edit
+FilePath: /PyCode/project_demo/研二/code/train.py
+'''
+
+
+# %%
 import typing
 from typing import Tuple
 import json
 import os
-
 import torch
+from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch import optim
-from sklearn.preprocessing import StandardScaler
 import joblib
-
+# from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -23,36 +33,92 @@ logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
 
 
+'''
+数据预处理
+'''
+
+
 def preprocess_data(dat, col_names) -> Tuple[TrainData, StandardScaler]:
+    # 标准化
     scale = StandardScaler().fit(dat)
     proc_dat = scale.transform(dat)
-
+    # 生成同等列长的mask数组
     mask = np.ones(proc_dat.shape[1], dtype=bool)
     dat_cols = list(dat.columns)
     for col_name in col_names:
         mask[dat_cols.index(col_name)] = False
-
     feats = proc_dat[:, mask]
     targs = proc_dat[:, ~mask]
-
     return TrainData(feats, targs), scale
 
 
+def rnn(train_data: TrainData, n_targs: int, hidden_size=64,
+           T=10, learning_rate=0.01, batch_size=128):
+
+    # 定义配置器 T=>滑窗长度 截取前70%的数据作为训练集
+    train_cfg = TrainConfig(
+        T, int(train_data.feats.shape[0] * 0.7), batch_size, nn.MSELoss())
+    logger.info(f"Training size: {train_cfg.train_size:d}.")
+
+    # 初始化网络结构
+    rnn_args = {
+        "input_size" : train_data.feats.shape[1],
+        "hidden_size" : hidden_size,
+        "T" : T
+    }
+
+
+    my_lstm = {
+        ""
+    }
+
+
+    # enc_kwargs = {
+    #     "input_size": train_data.feats.shape[1], "hidden_size": encoder_hidden_size, "T": T}
+    # encoder = Encoder(**enc_kwargs).to(device)
+
+    # # 将encoder层，decoder层配置写 入配置文件
+    # with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
+    #     json.dump(enc_kwargs, fi, indent=4)
+
+    # dec_kwargs = {"encoder_hidden_size": encoder_hidden_size,
+    #               "decoder_hidden_size": decoder_hidden_size, "T": T, "out_feats": n_targs}
+    # decoder = Decoder(**dec_kwargs).to(device)
+    # with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
+    #     json.dump(dec_kwargs, fi, indent=4)
+
+    # encoder_optimizer = optim.Adam(
+    #     params=[p for p in encoder.parameters() if p.requires_grad],
+    #     lr=learning_rate)
+    # decoder_optimizer = optim.Adam(
+    #     params=[p for p in decoder.parameters() if p.requires_grad],
+    #     lr=learning_rate)
+    # da_rnn_net = DaRnnNet(
+    #     encoder, decoder, encoder_optimizer, decoder_optimizer)
+
+    return train_cfg, da_rnn_net
+
+
+    
 def da_rnn(train_data: TrainData, n_targs: int, encoder_hidden_size=64, decoder_hidden_size=64,
            T=10, learning_rate=0.01, batch_size=128):
 
-    train_cfg = TrainConfig(T, int(train_data.feats.shape[0] * 0.7), batch_size, nn.MSELoss())
+    # 定义配置器 T=>滑窗长度 截取前70%的数据作为训练集
+    train_cfg = TrainConfig(
+        T, int(train_data.feats.shape[0] * 0.7), batch_size, nn.MSELoss())
     logger.info(f"Training size: {train_cfg.train_size:d}.")
-
-    enc_kwargs = {"input_size": train_data.feats.shape[1], "hidden_size": encoder_hidden_size, "T": T}
+    enc_kwargs = {
+        "input_size": train_data.feats.shape[1], "hidden_size": encoder_hidden_size, "T": T}
     encoder = Encoder(**enc_kwargs).to(device)
-    with open(os.path.join("data", "enc_kwargs.json"), "w") as fi:
+
+    # 将encoder层，decoder层配置写 入配置文件
+    with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
         json.dump(enc_kwargs, fi, indent=4)
 
     dec_kwargs = {"encoder_hidden_size": encoder_hidden_size,
                   "decoder_hidden_size": decoder_hidden_size, "T": T, "out_feats": n_targs}
     decoder = Decoder(**dec_kwargs).to(device)
-    with open(os.path.join("data", "dec_kwargs.json"), "w") as fi:
+    with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
         json.dump(dec_kwargs, fi, indent=4)
 
     encoder_optimizer = optim.Adam(
@@ -61,27 +127,53 @@ def da_rnn(train_data: TrainData, n_targs: int, encoder_hidden_size=64, decoder_
     decoder_optimizer = optim.Adam(
         params=[p for p in decoder.parameters() if p.requires_grad],
         lr=learning_rate)
-    da_rnn_net = DaRnnNet(encoder, decoder, encoder_optimizer, decoder_optimizer)
+    da_rnn_net = DaRnnNet(
+        encoder, decoder, encoder_optimizer, decoder_optimizer)
 
     return train_cfg, da_rnn_net
 
 
+'''
+DaRnnNet 网络架构
+train_data 训练集
+t_cfg 训练集配置
+n_epochs 迭代次数
+save_plots 是否保存图片
+'''
+
+
 def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10, save_plots=False):
+    # 向上取整
     iter_per_epoch = int(np.ceil(t_cfg.train_size * 1. / t_cfg.batch_size))
+    # 存储迭代损失值
     iter_losses = np.zeros(n_epochs * iter_per_epoch)
+    # 存储每轮epoch的损失值
     epoch_losses = np.zeros(n_epochs)
-    logger.info(f"Iterations per epoch: {t_cfg.train_size * 1. / t_cfg.batch_size:3.3f} ~ {iter_per_epoch:d}.")
+    print('iter_loss:', iter_losses)
+    print('epoch_loss: ', epoch_losses)
+    logger.info(
+        f"Iterations per epoch: {t_cfg.train_size * 1. / t_cfg.batch_size:3.3f} ~ {iter_per_epoch:d}.")
 
     n_iter = 0
 
+    print('一共', n_epochs, '次迭代')
     for e_i in range(n_epochs):
+        print('现在是第 ', e_i, '轮迭代')
+
+        # 随机生成
         perm_idx = np.random.permutation(t_cfg.train_size - t_cfg.T)
-
+        # 循环迭代 每次迭代的步长为batch_size\
         for t_i in range(0, t_cfg.train_size, t_cfg.batch_size):
+            # 随机采样
             batch_idx = perm_idx[t_i:(t_i + t_cfg.batch_size)]
-            feats, y_history, y_target = prep_train_data(batch_idx, t_cfg, train_data)
+            # 滑窗策略
 
-            loss = train_iteration(net, t_cfg.loss_func, feats, y_history, y_target)
+            feats, y_history, y_target = prep_train_data(
+                batch_idx, t_cfg, train_data)
+            # 计算loss值
+
+            loss = train_iteration(net, t_cfg.loss_func,
+                                   feats, y_history, y_target)
             iter_losses[e_i * iter_per_epoch + t_i // t_cfg.batch_size] = loss
             # if (j / t_cfg.batch_size) % 50 == 0:
             #    self.logger.info("Epoch %d, Batch %d: loss = %3.3f.", i, j / t_cfg.batch_size, loss)
@@ -89,7 +181,8 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
 
             adjust_learning_rate(net, n_iter)
 
-        epoch_losses[e_i] = np.mean(iter_losses[range(e_i * iter_per_epoch, (e_i + 1) * iter_per_epoch)])
+        epoch_losses[e_i] = np.mean(
+            iter_losses[range(e_i * iter_per_epoch, (e_i + 1) * iter_per_epoch)])
 
         if e_i % 10 == 0:
             y_test_pred = predict(net, train_data,
@@ -97,7 +190,8 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
                                   on_train=False)
             # TODO: make this MSE and make it work for multiple inputs
             val_loss = y_test_pred - train_data.targs[t_cfg.train_size:]
-            logger.info(f"Epoch {e_i:d}, train loss: {epoch_losses[e_i]:3.3f}, val loss: {np.mean(np.abs(val_loss))}.")
+            logger.info(
+                f"Epoch {e_i:d}, train loss: {epoch_losses[e_i]:3.3f}, val loss: {np.mean(np.abs(val_loss))}.")
             y_train_pred = predict(net, train_data,
                                    t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
                                    on_train=True)
@@ -114,11 +208,16 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
     return iter_losses, epoch_losses
 
 
+'''
+准备训练数据
+'''
 def prep_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: TrainData):
     feats = np.zeros((len(batch_idx), t_cfg.T - 1, train_data.feats.shape[1]))
-    y_history = np.zeros((len(batch_idx), t_cfg.T - 1, train_data.targs.shape[1]))
+    y_history = np.zeros(
+        (len(batch_idx), t_cfg.T - 1, train_data.targs.shape[1]))
     y_target = train_data.targs[batch_idx + t_cfg.T]
-
+    # 获取采样的batch_id的下标和值
+    # 获取特征和标签的相应下标值
     for b_i, b_idx in enumerate(batch_idx):
         b_slc = slice(b_idx, b_idx + t_cfg.T - 1)
         feats[b_i, :, :] = train_data.feats[b_slc, :]
@@ -126,7 +225,9 @@ def prep_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: Train
 
     return feats, y_history, y_target
 
-
+'''
+自适应调整学习率
+'''
 def adjust_learning_rate(net: DaRnnNet, n_iter: int):
     # TODO: Where did this Learning Rate adjustment schedule come from?
     # Should be modified to use Cosine Annealing with warm restarts https://www.jeremyjordan.me/nn-learning-rate/
@@ -135,7 +236,9 @@ def adjust_learning_rate(net: DaRnnNet, n_iter: int):
             enc_params['lr'] = enc_params['lr'] * 0.9
             dec_params['lr'] = dec_params['lr'] * 0.9
 
-
+'''
+训练迭代
+'''
 def train_iteration(t_net: DaRnnNet, loss_func: typing.Callable, X, y_history, y_target):
     t_net.enc_opt.zero_grad()
     t_net.dec_opt.zero_grad()
@@ -178,41 +281,7 @@ def predict(t_net: DaRnnNet, t_dat: TrainData, train_size: int, batch_size: int,
 
         y_history = numpy_to_tvar(y_history)
         _, input_encoded = t_net.encoder(numpy_to_tvar(X))
-        y_pred[y_slc] = t_net.decoder(input_encoded, y_history).cpu().data.numpy()
+        y_pred[y_slc] = t_net.decoder(
+            input_encoded, y_history).cpu().data.numpy()
 
     return y_pred
-
-
-save_plots = True
-debug = False
-#TODO 1.读取数据集，如果是debug模式就读取前面100行 否则读取全部
-raw_data = pd.read_excel(os.path.join("data", "dianli.xlsx"), nrows=100 if debug else None)
-logger.info(f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
-targ_cols = ("NDX",)
-data, scaler = preprocess_data(raw_data, targ_cols)
-
-da_rnn_kwargs = {"batch_size": 128, "T": 10}
-config, model = da_rnn(data, n_targs=len(targ_cols), learning_rate=.001, **da_rnn_kwargs)
-iter_loss, epoch_loss = train(model, data, config, n_epochs=10, save_plots=save_plots)
-final_y_pred = predict(model, data, config.train_size, config.batch_size, config.T)
-
-plt.figure()
-plt.semilogy(range(len(iter_loss)), iter_loss)
-utils.save_or_show_plot("iter_loss.png", save_plots)
-
-plt.figure()
-plt.semilogy(range(len(epoch_loss)), epoch_loss)
-utils.save_or_show_plot("epoch_loss.png", save_plots)
-
-plt.figure()
-plt.plot(final_y_pred, label='Predicted')
-plt.plot(data.targs[config.train_size:], label="True")
-plt.legend(loc='upper left')
-utils.save_or_show_plot("final_predicted.png", save_plots)
-
-with open(os.path.join("data", "da_rnn_kwargs.json"), "w") as fi:
-    json.dump(da_rnn_kwargs, fi, indent=4)
-
-joblib.dump(scaler, os.path.join("data", "scaler.pkl"))
-torch.save(model.encoder.state_dict(), os.path.join("data", "encoder.torch"))
-torch.save(model.decoder.state_dict(), os.path.join("data", "decoder.torch"))
