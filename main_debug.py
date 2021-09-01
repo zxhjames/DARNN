@@ -1,7 +1,7 @@
 '''
 Author: your name
 Date: 2021-08-27 16:35:28
-LastEditTime: 2021-09-01 13:29:33
+LastEditTime: 2021-09-01 18:17:09
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/main_debug.py
@@ -21,6 +21,7 @@ import numpy as np
 import utils
 from custom_types import *
 from constants import device
+from lstm import * 
 from  train import * 
 logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
@@ -77,14 +78,14 @@ def trainMode(mode_name):
     elif mode_name == 'RNN':
         rnn_args = init_args
         config, model = rnn(data, n_targs=len(targ_cols),learning_rate=.001,**rnn_args)
-        print('model',model)
+        print('model',model.rnn)
         iter_loss, epoch_loss = train_rnn(
             model,data,config,n_epochs=30,save_plots=save_plots)
 
     
 
 
-
+trainMode('RNN')
 
 '''
 定义损失函数

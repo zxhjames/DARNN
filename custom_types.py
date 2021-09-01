@@ -1,7 +1,7 @@
 '''
 Author: your name
 Date: 2021-08-26 10:55:50
-LastEditTime: 2021-09-01 12:51:43
+LastEditTime: 2021-09-01 14:46:41
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/custom_types.py
@@ -26,4 +26,4 @@ class TrainData(typing.NamedTuple):
 
 DaRnnNet = collections.namedtuple("DaRnnNet", ["encoder", "decoder", "enc_opt", "dec_opt"])
 
-RnnNet = collections.namedtuple("RnnNet",["lstm","lstm_opt"])
+RnnNet = collections.namedtuple("RnnNet",["rnn","rnn_optimizer"])

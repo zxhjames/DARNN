@@ -1,5 +1,8 @@
 {
-    "input_size": 5,
+    "input_size": 6,
     "hidden_size": 64,
-    "T": 10
+    "num_layers": 1,
+    "output_size": 1,
+    "dropout": 0,
+    "batch_first": true
 }

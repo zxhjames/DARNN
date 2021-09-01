@@ -1,7 +1,7 @@
 '''
 Author: your name
 Date: 2021-09-01 10:08:37
-LastEditTime: 2021-09-01 13:24:53
+LastEditTime: 2021-09-01 17:53:57
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/train.py
@@ -20,47 +20,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-import utils
 from imodules import Encoder, Decoder
-from lstm import Lstm
 from custom_types import *
 from utils import numpy_to_tvar
 from constants import device
 
+import utils
 logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
 
 
-
-def rnn(train_data: TrainData, n_targs: int, hidden_size=64,
-           T=10, learning_rate=0.01, batch_size=128):
-
-    # 定义配置器 T=>滑窗长度 截取前70%的数据作为训练集
-    train_cfg = TrainConfig(
-        T, int(train_data.feats.shape[0] * 0.7), batch_size, nn.MSELoss())
-    logger.info(f"Training size: {train_cfg.train_size:d}.")
-
-    # 初始化网络结构
-    rnn_args = {
-        "input_size" : train_data.feats.shape[1],
-        "hidden_size" : hidden_size,
-        "T" : T
-    }
-    rnn  = Lstm(**rnn_args).to(device)
-    with open( ('data/lstm.json'),"w") as fi:
-        json.dump(rnn_args,fi,indent=4)
-
-    rnn_optimizer = optim.Adam(
-        params=[p for p in rnn.parameters() if p.requires_grad],
-        lr=learning_rate
-    )
-
-    print(rnn_optimizer)
-    
-    rnn_net = RnnNet(
-        rnn,rnn_optimizer
-    )
-    return train_cfg, rnn_net
 
 
     
@@ -136,7 +105,6 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
                 batch_idx, t_cfg, train_data)
 
             logger.info("数据准备成功")
-            print('数据准备成功!')
             # 计算loss值
 
             loss = train_iteration(net, t_cfg.loss_func,
@@ -206,7 +174,7 @@ def adjust_learning_rate(net: DaRnnNet, n_iter: int):
             dec_params['lr'] = dec_params['lr'] * 0.9
 
 '''
-训练迭代
+DARNN训练迭代
 '''
 def train_iteration(t_net: DaRnnNet, loss_func: typing.Callable, X, y_history, y_target):
     t_net.enc_opt.zero_grad()
@@ -214,8 +182,9 @@ def train_iteration(t_net: DaRnnNet, loss_func: typing.Callable, X, y_history, y
 
     input_weighted, input_encoded = t_net.encoder(numpy_to_tvar(X))
     y_pred = t_net.decoder(input_encoded, numpy_to_tvar(y_history))
-
+    print('y_pred shape: ',y_pred.shape)
     y_true = numpy_to_tvar(y_target)
+    print('y_true shape: ',y_true.shape)
     loss = loss_func(y_pred, y_true)
     loss.backward()
 
@@ -223,6 +192,8 @@ def train_iteration(t_net: DaRnnNet, loss_func: typing.Callable, X, y_history, y
     t_net.dec_opt.step()
 
     return loss.item()
+
+
 
 
 
