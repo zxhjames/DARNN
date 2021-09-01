@@ -231,25 +231,36 @@ def predict(t_net: DaRnnNet, t_dat: TrainData, train_size: int, batch_size: int,
     return y_pred
 
 
-# %%
+
+'''
+在这里初始化所有参数
+'''
 
 save_plots = True
 debug = True
 # TODO 1.读取数据集，如果是debug模式就读取前面100行 否则读取全部
-# raw_data = pd.read_csv('data/澳大利亚电力负荷与价格预测数据.xlsx',nrows=1000 if debug else None)
-raw_data = pd.read_excel(("/Users/mac/Code/PyCode/project_demo/研二/code/data/澳大利亚电力负荷与价格预测数据.xlsx"), nrows=1000 if debug else None)
-# # %%
-
+raw_data = pd.read_excel(("data/dianli.xlsx"), nrows=1000 if debug else None)
 logger.info(
     f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
-
-
 raw_data_copy = raw_data.copy()
 raw_data_copy.columns = ['date', 'hour',
                          'f1', 'f2', 'f3', 'f4', 'f5', 'target']
 raw_data_copy = raw_data_copy[['f1', 'f2', 'f3', 'f4', 'f5', 'target']]
 targ_cols = ("target",)  # NDX是我们需要预测的值
 data, scaler = preprocess_data(raw_data_copy, targ_cols)
+
+'''
+指定参数
+batch_size 128
+T 10
+learning_rate 0.001
+n_epochs 30
+
+'''
+
+
+
+
 da_rnn_kwargs = {"batch_size": 128, "T": 10}
 config, model = da_rnn(data, n_targs=len(targ_cols),
                        learning_rate=.001, **da_rnn_kwargs)

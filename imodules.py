@@ -36,19 +36,21 @@ class Encoder(nn.Module):
         hidden = init_hidden(input_data, self.hidden_size)  # 1 * batch_size * hidden_size
         cell = init_hidden(input_data, self.hidden_size)
 
-        # Eqn. 8: concatenate the hidden states with each predictor
-        # TODO permute转化tensor维度 encoder的输入是隐藏状态和每一个cell
-        #  repeat表示对张量进行扩充，在这里是对通道数(行)进扩充
-        #  cat是对tensor进行拼接
-        x = torch.cat((hidden.repeat(self.input_size, 1, 1).permute(1, 0, 2),
-                       cell.repeat(self.input_size, 1, 1).permute(1, 0, 2),
-                       input_data.permute(0, 2, 1)), dim=2)  # batch_size * input_size * (2*hidden_size + T - 1)
-        # Eqn. 8: Get attention weights
-        x = self.attn_linear(x.view(-1, self.hidden_size * 2 + self.T - 1))  # (batch_size * input_size) * 1
-        # Eqn. 9: Softmax the attention weights
-        attn_weights = tf.softmax(x.view(-1, self.input_size), dim=1)  # (batch_size, input_size)
+      # (batch_size, input_size)
 
         for t in range(self.T - 1):
+            # Eqn. 8: concatenate the hidden states with each predictor
+            # TODO permute转化tensor维度 encoder的输入是隐藏状态和每一个cell
+            #  repeat表示对张量进行扩充，在这里是对通道数(行)进扩充
+            #  cat是对tensor进行拼接
+            x = torch.cat((hidden.repeat(self.input_size, 1, 1).permute(1, 0, 2),
+                        cell.repeat(self.input_size, 1, 1).permute(1, 0, 2),
+                        input_data.permute(0, 2, 1)), dim=2)  # batch_size * input_size * (2*hidden_size + T - 1)
+            # Eqn. 8: Get attention weights
+            x = self.attn_linear(x.view(-1, self.hidden_size * 2 + self.T - 1))  # (batch_size * input_size) * 1
+            # Eqn. 9: Softmax the attention weights
+            attn_weights = tf.softmax(x.view(-1, self.input_size), dim=1) 
+
             # Eqn. 10: LSTM 逐元素相乘
             weighted_input = torch.mul(attn_weights, input_data[:, t, :])  # (batch_size, input_size)
             # Fix the warning about non-contiguous memory
@@ -62,7 +64,6 @@ class Encoder(nn.Module):
             input_encoded[:, t, :] = hidden
 
         return input_weighted, input_encoded
-
 
 class Decoder(nn.Module):
 
