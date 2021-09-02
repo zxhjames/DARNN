@@ -1,7 +1,7 @@
 '''
 Author: your name
 Date: 2021-08-31 10:06:33
-LastEditTime: 2021-09-01 21:04:03
+LastEditTime: 2021-09-02 08:58:54
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/lstm.py
@@ -94,12 +94,13 @@ def rnn(train_data: TrainData, n_targs: int, hidden_size=64,
 准备训练数据 对于每一组数据，需要分离特征( 历史前T时间步的基本特征和标签作为训练集，下一步作为测试集)
 '''
 def prep_rnn_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: TrainData):
-    # feats shape (128,9,5)
+    print('batch_ids: ',batch_idx)
+    # batch_idx是一个随机索引的下标
+    # 特征数据 feats shape (128,9,5)
     feats = np.zeros((len(batch_idx), t_cfg.T , train_data.feats.shape[1]))
-    # y_history (128,9,1)
-    y_history = np.zeros(
-        (len(batch_idx), t_cfg.T , train_data.targs.shape[1]))
-    # y_target (128,1)
+    # 历史序列 y_history (128,9,1)
+    y_history = np.zeros((len(batch_idx), t_cfg.T , train_data.targs.shape[1]))
+    # 标签数据 y_target (128,1)
     y_target = train_data.targs[batch_idx + t_cfg.T]
 
 
@@ -119,7 +120,7 @@ def prep_rnn_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: T
 '''
 def rnn_train_iteration(t_net: RnnNet, loss_func: typing.Callable, X, y_history, y_target):
     input_data = np.append(X,y_history,axis=2)
-    print(input_data.shape)
+    # print(input_data.shape)
     data1 = torch.from_numpy(input_data).to(torch.float32)
     pred = t_net.rnn(Variable(data1))
     pred = pred[0, :, :]
@@ -130,6 +131,8 @@ def rnn_train_iteration(t_net: RnnNet, loss_func: typing.Callable, X, y_history,
     t_net.rnn_optimizer.step()
     print('loss计算完成')
     return loss.item()
+
+
 
 '''
 rnn 版本预测
@@ -198,10 +201,6 @@ def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=1
             feats, y_history, y_target = prep_rnn_train_data(
                 batch_idx, t_cfg, train_data)
 
-            # print('feats: ',feats.shape)
-            # print('y_history: ',y_history.shape)
-            # print('y_target: ',y_target.shape)
-
             # 计算loss值
             loss = rnn_train_iteration(net, t_cfg.loss_func,
                                    feats, y_history, y_target)
@@ -217,25 +216,26 @@ def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=1
         epoch_losses[e_i] = np.mean(
             iter_losses[range(e_i * iter_per_epoch, (e_i + 1) * iter_per_epoch)])
 
-        if e_i % 10 == 0:
-            y_test_pred = predict(net, train_data,
-                                  t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
-                                  on_train=False)
-            # TODO: make this MSE and make it work for multiple inputs
-            val_loss = y_test_pred - train_data.targs[t_cfg.train_size:]
-            logger.info(
-                f"Epoch {e_i:d}, train loss: {epoch_losses[e_i]:3.3f}, val loss: {np.mean(np.abs(val_loss))}.")
-            y_train_pred = predict(net, train_data,
-                                   t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
-                                   on_train=True)
-            plt.figure()
-            plt.plot(range(1, 1 + len(train_data.targs)), train_data.targs,
-                     label="True")
-            plt.plot(range(t_cfg.T, len(y_train_pred) + t_cfg.T), y_train_pred,
-                     label='Predicted - Train')
-            plt.plot(range(t_cfg.T + len(y_train_pred), len(train_data.targs) + 1), y_test_pred,
-                     label='Predicted - Test')
-            plt.legend(loc='upper left')
-            utils.save_or_show_plot(f"pred_{e_i}.png", save_plots)
+        print('epoch_loss',epoch_losses)
+        # if e_i % 10 == 0:
+        #     y_test_pred = rnn_predict(net, train_data,
+        #                           t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
+        #                           on_train=False)
+        #     # TODO: make this MSE and make it work for multiple inputs
+        #     val_loss = y_test_pred - train_data.targs[t_cfg.train_size:]
+        #     logger.info(
+        #         f"Epoch {e_i:d}, train loss: {epoch_losses[e_i]:3.3f}, val loss: {np.mean(np.abs(val_loss))}.")
+        #     y_train_pred = rnn_predict(net, train_data,
+        #                            t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
+        #                            on_train=True)
+        #     plt.figure()
+        #     plt.plot(range(1, 1 + len(train_data.targs)), train_data.targs,
+        #              label="True")
+        #     plt.plot(range(t_cfg.T, len(y_train_pred) + t_cfg.T), y_train_pred,
+        #              label='Predicted - Train')
+        #     plt.plot(range(t_cfg.T + len(y_train_pred), len(train_data.targs) + 1), y_test_pred,
+        #              label='Predicted - Test')
+        #     plt.legend(loc='upper left')
+        #     utils.save_or_show_plot(f"pred_{e_i}.png", save_plots)
 
     return iter_losses, epoch_losses
