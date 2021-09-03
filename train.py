@@ -1,7 +1,7 @@
 '''
 Author: your name
 Date: 2021-09-01 10:08:37
-LastEditTime: 2021-09-01 17:53:57
+LastEditTime: 2021-09-02 13:49:07
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/train.py
@@ -28,13 +28,10 @@ from constants import device
 import utils
 logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
+from sklearn.metrics import *
 
-
-
-
-    
 def da_rnn(train_data: TrainData, n_targs: int, encoder_hidden_size=64, decoder_hidden_size=64,
-           T=10, learning_rate=0.01, batch_size=128):
+           T=10, learning_rate=0.001, batch_size=128):
 
     # 定义配置器 T=>滑窗长度 截取前70%的数据作为训练集
     train_cfg = TrainConfig(
@@ -45,13 +42,13 @@ def da_rnn(train_data: TrainData, n_targs: int, encoder_hidden_size=64, decoder_
     encoder = Encoder(**enc_kwargs).to(device)
 
     # 将encoder层，decoder层配置写 入配置文件
-    with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
+    with open(("data/enc_kwargs.json"), "w") as fi:
         json.dump(enc_kwargs, fi, indent=4)
 
     dec_kwargs = {"encoder_hidden_size": encoder_hidden_size,
                   "decoder_hidden_size": decoder_hidden_size, "T": T, "out_feats": n_targs}
     decoder = Decoder(**dec_kwargs).to(device)
-    with open(("/Users/mac/Code/PyCode/project_demo/研二/code/data/enc_kwargs.json"), "w") as fi:
+    with open(("data/enc_kwargs.json"), "w") as fi:
         json.dump(dec_kwargs, fi, indent=4)
 
     encoder_optimizer = optim.Adam(
@@ -89,28 +86,29 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
 
     n_iter = 0
 
-    print('一共', n_epochs, '次迭代')
+   # print('一共', n_epochs, '次迭代')
     for e_i in range(n_epochs):
-        print('现在是第 ', e_i, '轮迭代')
+        #print('现在是第 ', e_i, '轮迭代')
 
         # 随机生成
         perm_idx = np.random.permutation(t_cfg.train_size - t_cfg.T)
         # 循环迭代 每次迭代的步长为batch_size\
         for t_i in range(0, t_cfg.train_size, t_cfg.batch_size):
-            # 随机采样
+            # todo 随机采样 batch_idx的长度为128个
             batch_idx = perm_idx[t_i:(t_i + t_cfg.batch_size)]
+            #print('perm id ' ,perm_idx)
+            #print('batch id: ',batch_idx)
             # 滑窗策略
 
             feats, y_history, y_target = prep_train_data(
                 batch_idx, t_cfg, train_data)
 
-            logger.info("数据准备成功")
+            print(feats.shape,y_history.shape,y_target.shape)
             # 计算loss值
 
             loss = train_iteration(net, t_cfg.loss_func,
                                    feats, y_history, y_target)
 
-                                   
             iter_losses[e_i * iter_per_epoch + t_i // t_cfg.batch_size] = loss
             # if (j / t_cfg.batch_size) % 50 == 0:
             #    self.logger.info("Epoch %d, Batch %d: loss = %3.3f.", i, j / t_cfg.batch_size, loss)
@@ -121,7 +119,10 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
         epoch_losses[e_i] = np.mean(
             iter_losses[range(e_i * iter_per_epoch, (e_i + 1) * iter_per_epoch)])
 
+       # print('epoch_loss',epoch_losses)
+
         if e_i % 10 == 0:
+            print('开始预测')
             y_test_pred = predict(net, train_data,
                                   t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
                                   on_train=False)
@@ -140,6 +141,21 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
             plt.plot(range(t_cfg.T + len(y_train_pred), len(train_data.targs) + 1), y_test_pred,
                      label='Predicted - Test')
             plt.legend(loc='upper left')
+
+            print(1,1 + len(train_data.targs))
+            print(t_cfg.T,len(y_train_pred) + t_cfg.T)
+            print(t_cfg.T + len(y_train_pred),len(train_data.targs) +1)
+
+
+            # todo 计算三者最后的MSE MAE MAPE
+            y_test_list = list(y_test_pred)
+            y_real = list(train_data.targs)[t_cfg.T + len(y_train_pred)-1 :len(train_data.targs) ]
+            print(len(y_real),len(y_test_list))
+
+
+            print('rmse: ',np.sqrt(mean_squared_error(y_real,y_test_list)))
+            print('mae: ', mean_absolute_error(y_real, y_test_list))
+            print('mape: ', mean_absolute_percentage_error(y_real, y_test_list))
             utils.save_or_show_plot(f"pred_{e_i}.png", save_plots)
 
     return iter_losses, epoch_losses
@@ -153,8 +169,6 @@ def prep_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: Train
     y_history = np.zeros(
         (len(batch_idx), t_cfg.T - 1, train_data.targs.shape[1]))
     y_target = train_data.targs[batch_idx + t_cfg.T]
-    # 获取采样的batch_id的下标和值
-    # 获取特征和标签的相应下标值
     for b_i, b_idx in enumerate(batch_idx):
         b_slc = slice(b_idx, b_idx + t_cfg.T - 1)
         feats[b_i, :, :] = train_data.feats[b_slc, :]
@@ -182,9 +196,9 @@ def train_iteration(t_net: DaRnnNet, loss_func: typing.Callable, X, y_history, y
 
     input_weighted, input_encoded = t_net.encoder(numpy_to_tvar(X))
     y_pred = t_net.decoder(input_encoded, numpy_to_tvar(y_history))
-    print('y_pred shape: ',y_pred.shape)
+   # print('y_pred shape: ',y_pred.shape)
     y_true = numpy_to_tvar(y_target)
-    print('y_true shape: ',y_true.shape)
+    #print('y_true shape: ',y_true.shape)
     loss = loss_func(y_pred, y_true)
     loss.backward()
 

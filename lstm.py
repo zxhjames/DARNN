@@ -1,13 +1,13 @@
 '''
 Author: your name
 Date: 2021-08-31 10:06:33
-LastEditTime: 2021-09-02 08:58:54
+LastEditTime: 2021-09-02 13:58:04
 LastEditors: Please set LastEditors
 Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/lstm.py
 '''
-from torch.autograd.variable import Variable
-import torch.nn as nn 
+import torch.nn as nn
+import numpy as np
 import torch
 from custom_types import *
 from train import prep_train_data,adjust_learning_rate
@@ -36,11 +36,11 @@ class Lstm(nn.Module):
         self.dropout = dropout
         self.batch_first = batch_first
 
-        self.rnn = nn.LSTM(input_size=self.input_size, 
+        self.rnn = nn.GRU(input_size=self.input_size, 
                            hidden_size=self.hidden_size, 
                            num_layers=self.num_layers, 
                            batch_first=self.batch_first, 
-                           dropout=self.dropout )
+                           dropout=self.dropout)
         self.linear = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, x):
@@ -56,14 +56,12 @@ class Lstm(nn.Module):
 '''
 基本网络类型
 '''
-def rnn(train_data: TrainData, n_targs: int, hidden_size=64,
-           T=10, learning_rate=0.01, batch_size=128):
+def rnn(train_data: TrainData, n_targs: int, hidden_size=64, T=10, learning_rate=0.001, batch_size=128):
 
     # 定义配置器 T=>滑窗长度 截取前70%的数据作为训练集
     train_cfg = TrainConfig(
         T, int(train_data.feats.shape[0] * 0.7), batch_size, nn.MSELoss())
     logger.info(f"Training size: {train_cfg.train_size:d}.")
-
     # 初始化网络结构
     rnn_args = {
         "input_size" : train_data.feats.shape[1] + 1,
@@ -73,12 +71,15 @@ def rnn(train_data: TrainData, n_targs: int, hidden_size=64,
         "dropout" : 0,
         "batch_first":True
     }
+    print ("run args: ", rnn_args)
     rnn  = Lstm(**rnn_args).to(device)
-    with open( ('data/lstm.json'),"w") as fi:
+    with open( ('data/lstm.json'),"w") as fi: 
         json.dump(rnn_args,fi,indent=4)
 
+    params=[p for p in rnn.parameters() if p.requires_grad]
+    print('params: ',params)
     rnn_optimizer = optim.Adam(
-        params=[p for p in rnn.parameters() if p.requires_grad],
+        params=params,
         lr=learning_rate
     )
 
@@ -97,9 +98,9 @@ def prep_rnn_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: T
     print('batch_ids: ',batch_idx)
     # batch_idx是一个随机索引的下标
     # 特征数据 feats shape (128,9,5)
-    feats = np.zeros((len(batch_idx), t_cfg.T , train_data.feats.shape[1]))
+    feats = np.zeros((len(batch_idx), t_cfg.T - 1 , train_data.feats.shape[1]))
     # 历史序列 y_history (128,9,1)
-    y_history = np.zeros((len(batch_idx), t_cfg.T , train_data.targs.shape[1]))
+    y_history = np.zeros((len(batch_idx), t_cfg.T - 1 , train_data.targs.shape[1]))
     # 标签数据 y_target (128,1)
     y_target = train_data.targs[batch_idx + t_cfg.T]
 
@@ -107,7 +108,7 @@ def prep_rnn_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: T
     # 获取采样的batch_id的下标和值
     # 获取特征和标签的相应下标值
     for b_i, b_idx in enumerate(batch_idx):
-        b_slc = slice(b_idx, b_idx + t_cfg.T )
+        b_slc = slice(b_idx, b_idx + t_cfg.T-1)
         feats[b_i, :, :] = train_data.feats[b_slc, :]
         y_history[b_i, :] = train_data.targs[b_slc]
 
@@ -122,14 +123,15 @@ def rnn_train_iteration(t_net: RnnNet, loss_func: typing.Callable, X, y_history,
     input_data = np.append(X,y_history,axis=2)
     # print(input_data.shape)
     data1 = torch.from_numpy(input_data).to(torch.float32)
+    print('data1 shape',data1.shape)
     pred = t_net.rnn(Variable(data1))
     pred = pred[0, :, :]
+    print('pred shape: ',pred.shape)
     label = torch.from_numpy(y_target).to(torch.float32).unsqueeze(1)
     loss = loss_func(pred, label)
     t_net.rnn_optimizer.zero_grad()
     loss.backward()
     t_net.rnn_optimizer.step()
-    print('loss计算完成')
     return loss.item()
 
 
@@ -176,37 +178,39 @@ t_cfg 训练集配置
 n_epochs 迭代次数
 save_plots 是否保存图片
 '''
-def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10, save_plots=False):
-    # 向上取整
+def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs, save_plots=False):
+    # 完成所有数据训练的迭代次数
     iter_per_epoch = int(np.ceil(t_cfg.train_size * 1. / t_cfg.batch_size))
-    # 存储迭代损失值
+    print('iter_per_epoch: ',t_cfg.train_size,t_cfg.batch_size,iter_per_epoch)
+    # 存储损失值列表
     iter_losses = np.zeros(n_epochs * iter_per_epoch)
-    # 存储每轮epoch的损失值
+    print('iter_losses: ',iter_losses.shape)
+    # 存储每次epoch的损失值
     epoch_losses = np.zeros(n_epochs)
     logger.info(
         f"Iterations per epoch: {t_cfg.train_size * 1. / t_cfg.batch_size:3.3f} ~ {iter_per_epoch:d}.")
     n_iter = 0
     print('一共', n_epochs, '次迭代')
+
     for e_i in range(n_epochs):
         print('现在是第 ', e_i, '轮迭代')
         # 随机生成
         perm_idx = np.random.permutation(t_cfg.train_size - t_cfg.T)
-        # 循环迭代 每次迭代的步长为batch_size\
+
+        # 循环迭代 每次迭代的步长为batch_size，每次选择batch_size大小的数据进行预测
         for t_i in range(0, t_cfg.train_size, t_cfg.batch_size):
-            # 随机采样
+            # 随机选择索引列
             batch_idx = perm_idx[t_i:(t_i + t_cfg.batch_size)]
             # 滑窗策略
-
             # 相当于 X,
             feats, y_history, y_target = prep_rnn_train_data(
                 batch_idx, t_cfg, train_data)
-
             # 计算loss值
             loss = rnn_train_iteration(net, t_cfg.loss_func,
                                    feats, y_history, y_target)
-            print('loss: ',loss)
-                                   
+            # print('loss: ',loss)
             iter_losses[e_i * iter_per_epoch + t_i // t_cfg.batch_size] = loss
+            # print('iter_losses index: ',e_i * iter_per_epoch + t_i // t_cfg.batch_size)
             # if (j / t_cfg.batch_size) % 50 == 0:
             #    self.logger.info("Epoch %d, Batch %d: loss = %3.3f.", i, j / t_cfg.batch_size, loss)
             n_iter += 1
@@ -237,5 +241,5 @@ def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=1
         #              label='Predicted - Test')
         #     plt.legend(loc='upper left')
         #     utils.save_or_show_plot(f"pred_{e_i}.png", save_plots)
-
+    print('训练结束')
     return iter_losses, epoch_losses
