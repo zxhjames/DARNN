@@ -85,10 +85,10 @@ def trainMode(mode_name):
     
 
 
-trainMode('DARNN')
+trainMode('RNN')
 
 '''
 定义损失函数
 '''
 
-del raw_data, raw_data_copy
+del raw_data, raw_data_copyc
