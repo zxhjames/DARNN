@@ -1,0 +1,7 @@
+{
+    "input_size": 6,
+    "hidden_size": 128,
+    "bidirectional": false,
+    "T": 10,
+    "num_classes": 1
+}
