@@ -12,6 +12,8 @@ FilePath: /PyCode/project_demo/研二/code/train.py
 import typing
 from typing import Tuple
 import json
+
+from sklearn.metrics.mape import mean_absolute_percentage_error
 from sklearn.preprocessing import StandardScaler
 from torch import nn
 from torch import optim

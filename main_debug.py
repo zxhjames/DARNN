@@ -7,21 +7,8 @@ Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/main_debug.py
 '''
 # %%
-import typing
-from typing import Tuple
-import json
-import os
-import torch
-from torch import nn
-from torch import optim
-import joblib
-import pandas as pd
-import numpy as np
-
-import utils
-from custom_types import *
-from constants import device
-from lstm import * 
+from lstm import *
+from iseq2seq import *
 from  train import * 
 logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
@@ -82,7 +69,12 @@ def trainMode(mode_name):
         iter_loss, epoch_loss = train_rnn(
             model,data,config,n_epochs=30,save_plots=save_plots)
 
-    
+    # elif mode_name == 'Seq2Seq':
+    #     s2s_args = init_args
+    #     config, model = seq2seq(data, n_targs=len(targ_cols), learning_rate=.001, **s2s_args)
+    #     print('model', model)
+    #     iter_loss, epoch_loss = train_s2s(
+    #         model, data, config, n_epochs=30, save_plots=save_plots)
 
 
 trainMode('DARNN')
