@@ -1,4 +1,6 @@
 # %%
+import numpy as np
+
 from lstm import *
 from train import *
 from sklearn.preprocessing import StandardScaler,MinMaxScaler
@@ -10,7 +12,7 @@ logger.info(f"Using computation device: {device}")
 '''
 
 save_plots = True
-debug = True
+debug = False
 datasets = [
     "data/Austrilia_dianli.xlsx",
     "data/UCI_dianli.xlsx"
@@ -20,7 +22,7 @@ datasets = [
 读取数据集:澳大利亚数据集
 '''
 def read_dataset1(dataset,debug=True):
-    raw_data = pd.read_excel((dataset), nrows=1000 if debug else None)
+    raw_data = pd.read_excel((dataset), nrows=512 if debug else None)
     logger.info(
         f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
     raw_data_copy = raw_data.copy()
@@ -34,7 +36,7 @@ def read_dataset1(dataset,debug=True):
 '''
 读取数据集:联合发电厂数据集
 '''
-def read_dataset2(dataset,debug=True):
+def read_dataset2(dataset,debug=False):
     raw_data = pd.read_excel((dataset), nrows=1000 if debug else None)
     logger.info(
         f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
@@ -50,6 +52,7 @@ def read_dataset2(dataset,debug=True):
 def prepare_data(dat, col_names):
     scale = StandardScaler().fit(dat)
     proc_dat = scale.transform(dat)
+    #proc_dat = np.array(dat)
     # 生成同等列长的mask数组
     mask = np.ones(proc_dat.shape[1], dtype=bool)
     dat_cols = list(dat.columns)

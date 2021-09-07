@@ -127,9 +127,11 @@ def rnn_train_iteration(t_net: RnnNet, loss_func: typing.Callable, X, y_history,
     data1 = torch.from_numpy(input_data).to(torch.float32)
     #print('data1 shape',data1.shape)
     pred = t_net.rnn(Variable(data1))
+    print('pred shape: ',pred.shape)
     pred = pred[0, :, :]
     #print('pred shape: ',pred.shape)
     label = torch.from_numpy(y_target).to(torch.float32).unsqueeze(1)
+    print('label shape： ',label.shape)
     loss = loss_func(pred, label)
     t_net.rnn_optimizer.zero_grad()
     loss.backward()
@@ -219,7 +221,7 @@ def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs, 
             # if (j / t_cfg.batch_size) % 50 == 0:
             #    self.logger.info("Epoch %d, Batch %d: loss = %3.3f.", i, j / t_cfg.batch_size, loss)
             n_iter += 1
-            print(loss)
+            #print(loss)
             #adjust_learning_rate(net, n_iter)
 
         epoch_losses[e_i] = np.mean(
@@ -255,7 +257,7 @@ def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs, 
             # todo 计算三者最后的MSE MAE MAPE
             y_test_list = list(y_test_pred)
             y_real = list(train_data.targs)[t_cfg.T + len(y_train_pred) - 1:len(train_data.targs)]
-            print(len(y_real), len(y_test_list))
+            #print(len(y_real), len(y_test_list))
 
             print('rmse: ', np.sqrt(mean_squared_error(y_real, y_test_list)))
             print('mae: ', mean_absolute_error(y_real, y_test_list))
