@@ -112,14 +112,12 @@ class Decoder(nn.Module):
         for t in range(self.T - 1):
             # (batch_size, T, (2 * decoder_hidden_size + encoder_hidden_size))
             x = torch.cat((hidden.repeat(self.T - 1, 1, 1).permute(1, 0, 2),
-                          # cell.repeat(self.T - 1, 1, 1).permute(1, 0, 2),
+                          # cell.repeat(self.T - 1, 1, 1).permute(1, 0, 2),z
                            input_encoded), dim=2)
             # Eqn. 12 & 13: softmax on the computed attention weights
-            x = tf.softmax(
-                    self.attn_layer(
-                        x.view(-1, 1 * self.decoder_hidden_size + self.encoder_hidden_size)
-                    ).view(-1, self.T - 1),
-                    dim=1)  # (batch_size, T - 1)
+            x =   self.attn_layer(x.view(-1, 1 * self.decoder_hidden_size + self.encoder_hidden_size))
+
+            x = tf.softmax(x.view(-1, self.T - 1),dim=1)  # (batch_size, T - 1)
 
             # Eqn. 14: compute context vector
             context = torch.bmm(x.unsqueeze(1), input_encoded)[:, 0, :]  # (batch_size, encoder_hidden_size)

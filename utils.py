@@ -1,10 +1,8 @@
 import logging
 import os
-
 import matplotlib.pyplot as plt
 import torch
 from torch.autograd import Variable
-
 from constants import device
 
 

@@ -66,6 +66,7 @@ def da_rnn(train_data: TrainData, n_targs: int, encoder_hidden_size=64, decoder_
 
 
 '''
+TODO 原论文中的训练方法
 DaRnnNet 网络架构
 train_data 训练集
 t_cfg 训练集配置
@@ -105,7 +106,7 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
             feats, y_history, y_target = prep_train_data(
                 batch_idx, t_cfg, train_data)
 
-            print(feats.shape,y_history.shape,y_target.shape)
+            #print(feats.shape,y_history.shape,y_target.shape)
             # 计算loss值
 
             loss = train_iteration(net, t_cfg.loss_func,

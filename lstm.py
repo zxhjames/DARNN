@@ -7,8 +7,9 @@ Description: In User Settings Edit
 FilePath: /PyCode/project_demo/研二/code/lstm.py
 '''
 import torch.nn as nn
-import numpy as np
 import torch
+from sklearn.metrics.mape import mean_absolute_percentage_error
+
 from custom_types import *
 from train import prep_train_data,adjust_learning_rate
 from torch import optim
@@ -18,6 +19,7 @@ from constants import device
 from torch.autograd import Variable
 import matplotlib.pyplot as plt
 from utils import numpy_to_tvar
+from sklearn.metrics import mean_squared_error,mean_absolute_error
 logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
 
@@ -44,7 +46,7 @@ class Lstm(nn.Module):
         self.linear = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, x):
-        out, (hidden, cell) = self.rnn(x)  # x.shape : batch, seq_len, hidden_size , hn.shape and cn.shape : num_layes * direction_numbers, batch, hidden_size
+        out, (hidden) = self.rnn(x)  # x.shape : batch, seq_len, hidden_size , hn.shape and cn.shape : num_layes * direction_numbers, batch, hidden_size
         # a, b, c = hidden.shape
         # out = self.linear(hidden.reshape(a * b, c))
         out = self.linear(hidden)
@@ -71,13 +73,13 @@ def rnn(train_data: TrainData, n_targs: int, hidden_size=64, T=10, learning_rate
         "dropout" : 0,
         "batch_first":True
     }
-    print ("run args: ", rnn_args)
+   # print ("run args: ", rnn_args)
     rnn  = Lstm(**rnn_args).to(device)
     with open( ('data/lstm.json'),"w") as fi: 
         json.dump(rnn_args,fi,indent=4)
 
     params=[p for p in rnn.parameters() if p.requires_grad]
-    print('params: ',params)
+   # print('params: ',params)
     rnn_optimizer = optim.Adam(
         params=params,
         lr=learning_rate
@@ -95,7 +97,7 @@ def rnn(train_data: TrainData, n_targs: int, hidden_size=64, T=10, learning_rate
 准备训练数据 对于每一组数据，需要分离特征( 历史前T时间步的基本特征和标签作为训练集，下一步作为测试集)
 '''
 def prep_rnn_train_data(batch_idx: np.ndarray, t_cfg: TrainConfig, train_data: TrainData):
-    print('batch_ids: ',batch_idx)
+    #print('batch_ids: ',batch_idx)
     # batch_idx是一个随机索引的下标
     # 特征数据 feats shape (128,9,5)
     feats = np.zeros((len(batch_idx), t_cfg.T - 1 , train_data.feats.shape[1]))
@@ -123,10 +125,10 @@ def rnn_train_iteration(t_net: RnnNet, loss_func: typing.Callable, X, y_history,
     input_data = np.append(X,y_history,axis=2)
     # print(input_data.shape)
     data1 = torch.from_numpy(input_data).to(torch.float32)
-    print('data1 shape',data1.shape)
+    #print('data1 shape',data1.shape)
     pred = t_net.rnn(Variable(data1))
     pred = pred[0, :, :]
-    print('pred shape: ',pred.shape)
+    #print('pred shape: ',pred.shape)
     label = torch.from_numpy(y_target).to(torch.float32).unsqueeze(1)
     loss = loss_func(pred, label)
     t_net.rnn_optimizer.zero_grad()
@@ -163,10 +165,13 @@ def rnn_predict(t_net: RnnNet, t_dat: TrainData, train_size: int, batch_size: in
             y_history[b_i, :] = t_dat.targs[idx]
 
         y_history = numpy_to_tvar(y_history)
-        _, input_encoded = t_net.encoder(numpy_to_tvar(X))
-        y_pred[y_slc] = t_net.decoder(
-            input_encoded, y_history).cpu().data.numpy()
-
+        input_data = np.append(X, y_history, axis=2)
+        # print(input_data.shape)
+        data1 = torch.from_numpy(input_data).to(torch.float32)
+        # print('data1 shape',data1.shape)
+        y_pred[y_slc] = t_net.rnn(Variable(data1)).cpu().data.numpy()
+        #y_pred = y_pred[0, :, :]
+    print('y_pred shape:',y_pred.shape)
     return y_pred
 
 
@@ -214,32 +219,47 @@ def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs, 
             # if (j / t_cfg.batch_size) % 50 == 0:
             #    self.logger.info("Epoch %d, Batch %d: loss = %3.3f.", i, j / t_cfg.batch_size, loss)
             n_iter += 1
-
-            adjust_learning_rate(net, n_iter)
+            print(loss)
+            #adjust_learning_rate(net, n_iter)
 
         epoch_losses[e_i] = np.mean(
             iter_losses[range(e_i * iter_per_epoch, (e_i + 1) * iter_per_epoch)])
 
         print('epoch_loss',epoch_losses)
-        # if e_i % 10 == 0:
-        #     y_test_pred = rnn_predict(net, train_data,
-        #                           t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
-        #                           on_train=False)
-        #     # TODO: make this MSE and make it work for multiple inputs
-        #     val_loss = y_test_pred - train_data.targs[t_cfg.train_size:]
-        #     logger.info(
-        #         f"Epoch {e_i:d}, train loss: {epoch_losses[e_i]:3.3f}, val loss: {np.mean(np.abs(val_loss))}.")
-        #     y_train_pred = rnn_predict(net, train_data,
-        #                            t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
-        #                            on_train=True)
-        #     plt.figure()
-        #     plt.plot(range(1, 1 + len(train_data.targs)), train_data.targs,
-        #              label="True")
-        #     plt.plot(range(t_cfg.T, len(y_train_pred) + t_cfg.T), y_train_pred,
-        #              label='Predicted - Train')
-        #     plt.plot(range(t_cfg.T + len(y_train_pred), len(train_data.targs) + 1), y_test_pred,
-        #              label='Predicted - Test')
-        #     plt.legend(loc='upper left')
-        #     utils.save_or_show_plot(f"pred_{e_i}.png", save_plots)
+
+        if e_i % 10 == 0:
+            print('开始预测')
+            y_test_pred = rnn_predict(net, train_data,
+                                  t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
+                                  on_train=False)
+            # TODO: make this MSE and make it work for multiple inputs
+            val_loss = y_test_pred - train_data.targs[t_cfg.train_size:]
+            logger.info(
+                f"Epoch {e_i:d}, train loss: {epoch_losses[e_i]:3.3f}, val loss: {np.mean(np.abs(val_loss))}.")
+            y_train_pred = rnn_predict(net, train_data,
+                                   t_cfg.train_size, t_cfg.batch_size, t_cfg.T,
+                                   on_train=True)
+            plt.figure()
+            plt.plot(range(1, 1 + len(train_data.targs)), train_data.targs,
+                     label="True")
+            plt.plot(range(t_cfg.T, len(y_train_pred) + t_cfg.T), y_train_pred,
+                     label='Predicted - Train')
+            plt.plot(range(t_cfg.T + len(y_train_pred), len(train_data.targs) + 1), y_test_pred,
+                     label='Predicted - Test')
+            plt.legend(loc='upper left')
+
+            # print(1, 1 + len(train_data.targs))
+            # print(t_cfg.T, len(y_train_pred) + t_cfg.T)
+            # print(t_cfg.T + len(y_train_pred), len(train_data.targs) + 1)
+
+            # todo 计算三者最后的MSE MAE MAPE
+            y_test_list = list(y_test_pred)
+            y_real = list(train_data.targs)[t_cfg.T + len(y_train_pred) - 1:len(train_data.targs)]
+            print(len(y_real), len(y_test_list))
+
+            print('rmse: ', np.sqrt(mean_squared_error(y_real, y_test_list)))
+            print('mae: ', mean_absolute_error(y_real, y_test_list))
+            print('mape: ', mean_absolute_percentage_error(y_real, y_test_list))
+            utils.save_or_show_plot(f"rnn_pred_{e_i}.png", save_plots)
     print('训练结束')
     return iter_losses, epoch_losses

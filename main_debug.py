@@ -1,19 +1,9 @@
-'''
-Author: your name
-Date: 2021-08-27 16:35:28
-LastEditTime: 2021-09-02 13:48:04
-LastEditors: Please set LastEditors
-Description: In User Settings Edit
-FilePath: /PyCode/project_demo/研二/code/main_debug.py
-'''
 # %%
 from lstm import *
-from iseq2seq import *
-from  train import * 
+from train import *
+from sklearn.preprocessing import StandardScaler,MinMaxScaler
 logger = utils.setup_log()
 logger.info(f"Using computation device: {device}")
-
-
 
 '''
 在这里初始化所有参数
@@ -21,14 +11,37 @@ logger.info(f"Using computation device: {device}")
 
 save_plots = True
 debug = True
-raw_data = pd.read_excel(("data/dianli.xlsx"), nrows=1000 if debug else None)
-logger.info(
-    f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
-raw_data_copy = raw_data.copy()
-raw_data_copy.columns = ['date', 'hour',
-                         'f1', 'f2', 'f3', 'f4', 'f5', 'target']
-raw_data_copy = raw_data_copy[['f1', 'f2', 'f3', 'f4', 'f5', 'target']]
-targ_cols = ("target",)  # NDX是我们需要预测的值
+datasets = [
+    "data/Austrilia_dianli.xlsx",
+    "data/UCI_dianli.xlsx"
+]
+
+'''
+读取数据集:澳大利亚数据集
+'''
+def read_dataset1(dataset,debug=True):
+    raw_data = pd.read_excel((dataset), nrows=1000 if debug else None)
+    logger.info(
+        f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
+    raw_data_copy = raw_data.copy()
+    raw_data_copy.columns = ['date', 'hour',
+                             'f1', 'f2', 'f3', 'f4', 'f5', 'target']
+    raw_data_copy = raw_data_copy[['f1', 'f2', 'f3', 'f4', 'f5', 'target']]
+    targ_cols = ("target",)  # NDX是我们需要预测的值
+    return raw_data_copy,targ_cols
+
+
+'''
+读取数据集:联合发电厂数据集
+'''
+def read_dataset2(dataset,debug=True):
+    raw_data = pd.read_excel((dataset), nrows=1000 if debug else None)
+    logger.info(
+        f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
+    raw_data_copy = raw_data.copy()
+    raw_data_copy.columns = ['f1', 'f2', 'f3', 'f4', 'target']
+    targ_cols = ("target",)  # NDX是我们需要预测的值
+    return raw_data_copy, targ_cols
 
 
 '''
@@ -45,9 +58,12 @@ def prepare_data(dat, col_names):
     feats = proc_dat[:, mask]
     targs = proc_dat[:, ~mask]
     return TrainData(feats, targs), scale
-    
-data, scaler = prepare_data(raw_data_copy, targ_cols)
 
+'''
+读取数据集
+'''
+raw_data,targ_cols = read_dataset1(datasets[0])
+data, scaler = prepare_data(raw_data, targ_cols)
 
 # 获取模型选项并训练模型
 init_args = {"batch_size": 128, "T": 10}
@@ -77,10 +93,10 @@ def trainMode(mode_name):
     #         model, data, config, n_epochs=30, save_plots=save_plots)
 
 
-trainMode('DARNN')
+trainMode('RNN')
 
 '''
 定义损失函数
 '''
 
-del raw_data, raw_data_copy
+del raw_data, targ_cols
