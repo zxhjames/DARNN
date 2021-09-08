@@ -22,7 +22,7 @@ datasets = [
 读取数据集:澳大利亚数据集
 '''
 def read_dataset1(dataset,debug=True):
-    raw_data = pd.read_excel((dataset), nrows=512 if debug else None)
+    raw_data = pd.read_excel((dataset), nrows=10000 if debug else None)
     logger.info(
         f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
     raw_data_copy = raw_data.copy()
@@ -36,7 +36,7 @@ def read_dataset1(dataset,debug=True):
 '''
 读取数据集:联合发电厂数据集
 '''
-def read_dataset2(dataset,debug=False):
+def read_dataset2(dataset,debug):
     raw_data = pd.read_excel((dataset), nrows=1000 if debug else None)
     logger.info(
         f"Shape of data: {raw_data.shape}.\nMissing in data: {raw_data.isnull().sum().sum()}.")
@@ -65,7 +65,7 @@ def prepare_data(dat, col_names):
 '''
 读取数据集
 '''
-raw_data,targ_cols = read_dataset1(datasets[0])
+raw_data,targ_cols = read_dataset2(datasets[1],True)
 data, scaler = prepare_data(raw_data, targ_cols)
 
 # 获取模型选项并训练模型
@@ -78,7 +78,7 @@ def trainMode(mode_name):
                             learning_rate=.001, **da_rnn_kwargs)
         print('model',model)
         iter_loss, epoch_loss = train(
-            model, data, config, n_epochs=30, save_plots=save_plots)
+            model, data, config, n_epochs=31, save_plots=save_plots)
 
 
     elif mode_name == 'RNN':
@@ -86,7 +86,7 @@ def trainMode(mode_name):
         config, model = rnn(data, n_targs=len(targ_cols),learning_rate=.001,**rnn_args)
         print('model',model)
         iter_loss, epoch_loss = train_rnn(
-            model,data,config,n_epochs=30,save_plots=save_plots)
+            model,data,config,n_epochs=31,save_plots=save_plots)
 
     # elif mode_name == 'Seq2Seq':
     #     s2s_args = init_args
@@ -94,7 +94,9 @@ def trainMode(mode_name):
     #     print('model', model)
     #     iter_loss, epoch_loss = train_s2s(
     #         model, data, config, n_epochs=30, save_plots=save_plots)
-
+# rmse:  0.9959643309152223
+# mae:  0.8625935032202798
+# mape:  1.006311470330605
 
 trainMode('RNN')
 

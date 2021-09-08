@@ -1,5 +1,5 @@
 {
-    "input_size": 6,
+    "input_size": 5,
     "hidden_size": 64,
     "num_layers": 1,
     "output_size": 1,

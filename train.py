@@ -37,7 +37,7 @@ def da_rnn(train_data: TrainData, n_targs: int, encoder_hidden_size=64, decoder_
 
     # 定义配置器 T=>滑窗长度 截取前70%的数据作为训练集
     train_cfg = TrainConfig(
-        T, int(train_data.feats.shape[0] * 0.7), batch_size, nn.MSELoss())
+        T, int(train_data.feats.shape[0] * 0.8), batch_size, nn.MSELoss())
     logger.info(f"Training size: {train_cfg.train_size:d}.")
     enc_kwargs = {
         "input_size": train_data.feats.shape[1], "hidden_size": encoder_hidden_size, "T": T}
@@ -117,7 +117,7 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
             #    self.logger.info("Epoch %d, Batch %d: loss = %3.3f.", i, j / t_cfg.batch_size, loss)
             n_iter += 1
 
-            adjust_learning_rate(net, n_iter)
+            # adjust_learning_rate(net, n_iter)
 
         epoch_losses[e_i] = np.mean(
             iter_losses[range(e_i * iter_per_epoch, (e_i + 1) * iter_per_epoch)])
@@ -145,15 +145,15 @@ def train(net: DaRnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs=10,
                      label='Predicted - Test')
             plt.legend(loc='upper left')
 
-            print(1,1 + len(train_data.targs))
-            print(t_cfg.T,len(y_train_pred) + t_cfg.T)
-            print(t_cfg.T + len(y_train_pred),len(train_data.targs) +1)
+            # print(1,1 + len(train_data.targs))
+            # print(t_cfg.T,len(y_train_pred) + t_cfg.T)
+            # print(t_cfg.T + len(y_train_pred),len(train_data.targs) +1)
 
 
             # todo 计算三者最后的MSE MAE MAPE
             y_test_list = list(y_test_pred)
             y_real = list(train_data.targs)[t_cfg.T + len(y_train_pred)-1 :len(train_data.targs) ]
-            print(len(y_real),len(y_test_list))
+            #print(len(y_real),len(y_test_list))
 
 
             print('rmse: ',np.sqrt(mean_squared_error(y_real,y_test_list)))

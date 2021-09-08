@@ -62,7 +62,7 @@ def rnn(train_data: TrainData, n_targs: int, hidden_size=64, T=10, learning_rate
 
     # 定义配置器 T=>滑窗长度 截取前70%的数据作为训练集
     train_cfg = TrainConfig(
-        T, int(train_data.feats.shape[0] * 0.7), batch_size, nn.MSELoss())
+        T, int(train_data.feats.shape[0] * 0.8), batch_size, nn.MSELoss())
     logger.info(f"Training size: {train_cfg.train_size:d}.")
     # 初始化网络结构
     rnn_args = {
@@ -127,11 +127,11 @@ def rnn_train_iteration(t_net: RnnNet, loss_func: typing.Callable, X, y_history,
     data1 = torch.from_numpy(input_data).to(torch.float32)
     #print('data1 shape',data1.shape)
     pred = t_net.rnn(Variable(data1))
-    print('pred shape: ',pred.shape)
+    # print('pred shape: ',pred.shape)
     pred = pred[0, :, :]
     #print('pred shape: ',pred.shape)
     label = torch.from_numpy(y_target).to(torch.float32).unsqueeze(1)
-    print('label shape： ',label.shape)
+    # print('label shape： ',label.shape)
     loss = loss_func(pred, label)
     t_net.rnn_optimizer.zero_grad()
     loss.backward()
@@ -173,7 +173,7 @@ def rnn_predict(t_net: RnnNet, t_dat: TrainData, train_size: int, batch_size: in
         # print('data1 shape',data1.shape)
         y_pred[y_slc] = t_net.rnn(Variable(data1)).cpu().data.numpy()
         #y_pred = y_pred[0, :, :]
-    print('y_pred shape:',y_pred.shape)
+    #print('y_pred shape:',y_pred.shape)
     return y_pred
 
 
@@ -188,19 +188,19 @@ save_plots 是否保存图片
 def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs, save_plots=False):
     # 完成所有数据训练的迭代次数
     iter_per_epoch = int(np.ceil(t_cfg.train_size * 1. / t_cfg.batch_size))
-    print('iter_per_epoch: ',t_cfg.train_size,t_cfg.batch_size,iter_per_epoch)
+  #  print('iter_per_epoch: ',t_cfg.train_size,t_cfg.batch_size,iter_per_epoch)
     # 存储损失值列表
     iter_losses = np.zeros(n_epochs * iter_per_epoch)
-    print('iter_losses: ',iter_losses.shape)
+  #  print('iter_losses: ',iter_losses.shape)
     # 存储每次epoch的损失值
     epoch_losses = np.zeros(n_epochs)
     logger.info(
         f"Iterations per epoch: {t_cfg.train_size * 1. / t_cfg.batch_size:3.3f} ~ {iter_per_epoch:d}.")
     n_iter = 0
-    print('一共', n_epochs, '次迭代')
+ #  print('一共', n_epochs, '次迭代')
 
     for e_i in range(n_epochs):
-        print('现在是第 ', e_i, '轮迭代')
+      #  print('现在是第 ', e_i, '轮迭代')
         # 随机生成
         perm_idx = np.random.permutation(t_cfg.train_size - t_cfg.T)
 
@@ -227,7 +227,7 @@ def train_rnn(net: RnnNet, train_data: TrainData, t_cfg: TrainConfig, n_epochs, 
         epoch_losses[e_i] = np.mean(
             iter_losses[range(e_i * iter_per_epoch, (e_i + 1) * iter_per_epoch)])
 
-        print('epoch_loss',epoch_losses)
+     #   print('epoch_loss',epoch_losses)
 
         if e_i % 10 == 0:
             print('开始预测')
